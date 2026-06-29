@@ -1,115 +1,106 @@
-"""Core analysis engine for AI Product Manager Copilot."""
+"""Core data analysis engine for the AI Product Manager Copilot."""
 
 import logging
+from typing import Any, Dict, List
 import json
-from typing import Dict, List, Any
-from src.utils.llm_client import get_llm_client
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
-class AnalysisEngine:
-    """Core engine for analyzing product management data."""
+class DataAnalyzer:
+    """Analyzes product and market data using LLM."""
 
-    def __init__(self):
-        self.llm = get_llm_client()
+    def __init__(self, model: str = None):
+        """Initialize the analyzer with an LLM."""
+        self.model_name = model or settings.DEFAULT_MODEL
+        self.llm = ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=self.model_name,
+            temperature=0.7,
+        )
+        logger.info(f"Initialized DataAnalyzer with model: {self.model_name}")
 
-    def analyze_text(self, text: str, analysis_type: str = "general") -> Dict[str, Any]:
-        """Analyze text content."""
-        prompts = {
-            "general": "Analyze the following text and provide key insights:\n\n{text}",
-            "sentiment": "Analyze the sentiment and emotional tone of: {text}",
-            "summary": "Provide a concise summary of: {text}",
-            "themes": "Identify main themes and patterns in: {text}",
-        }
+    def analyze_sentiment(self, text: str) -> Dict[str, Any]:
+        """Analyze sentiment of text data."""
+        prompt = PromptTemplate(
+            input_variables=["text"],
+            template="""Analyze the sentiment of the following text. Provide:
+1. Overall sentiment (positive, negative, neutral)
+2. Confidence score (0-1)
+3. Key emotional indicators
+4. Actionable insights
 
-        prompt = prompts.get(analysis_type, prompts["general"]).format(text=text)
+Text: {text}
 
-        try:
-            result = self.llm.generate(prompt)
-            return {
-                "analysis_type": analysis_type,
-                "result": result,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Analysis failed: {e}")
-            return {
-                "analysis_type": analysis_type,
-                "status": "error",
-                "error": str(e),
-            }
+Provide response as JSON.""",
+        )
 
-    def extract_insights(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract actionable insights from data."""
-        system_prompt = """You are an expert product manager analyst. 
-        Extract key insights, patterns, and actionable recommendations from the provided data.
-        Focus on business impact and strategic importance."""
-
-        user_message = f"Extract insights from this data:\n\n{str(data)}"
-
-        try:
-            insights = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "insights": insights,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Insight extraction failed: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-            }
-
-    def compare_items(
-        self, items: List[Dict[str, Any]], comparison_criteria: List[str]
-    ) -> Dict[str, Any]:
-        """Compare multiple items across criteria."""
-        system_prompt = """You are an expert analyst. 
-        Compare the provided items across the specified criteria.
-        Provide structured analysis with pros and cons for each."""
-
-        user_message = f"""Compare these items:
+        chain = prompt | self.llm
+        response = chain.invoke({"text": text})
         
-{json.dumps(items, indent=2)}
-
-Across these criteria: {', '.join(comparison_criteria)}"""
-
         try:
-            comparison = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "comparison": comparison,
-                "items_compared": len(items),
-                "criteria": comparison_criteria,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Comparison failed: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-            }
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"sentiment": "neutral", "confidence": 0.5, "text": response.content}
+        
+        return result
 
-    def synthesize_data(self, data_points: List[str]) -> Dict[str, Any]:
-        """Synthesize multiple data points into coherent insights."""
-        system_prompt = """You are an expert at synthesizing diverse data points.
-        Create a coherent narrative that connects the provided information.
-        Identify patterns, correlations, and key takeaways."""
+    def extract_key_themes(self, data: List[str]) -> Dict[str, Any]:
+        """Extract key themes from multiple data points."""
+        combined_text = "\n".join(data)
+        
+        prompt = PromptTemplate(
+            input_variables=["data"],
+            template="""Analyze the following data points and extract:
+1. Top 5 recurring themes
+2. Patterns and correlations
+3. Outliers or unique insights
+4. Confidence level for each theme
 
-        user_message = f"""Synthesize these data points:
+Data:
+{data}
 
-{chr(10).join(f'- {point}' for point in data_points)}"""
+Provide response as JSON.""",
+        )
 
+        chain = prompt | self.llm
+        response = chain.invoke({"data": combined_text})
+        
         try:
-            synthesis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "synthesis": synthesis,
-                "data_points_analyzed": len(data_points),
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Synthesis failed: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-            }
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"themes": [], "analysis": response.content}
+        
+        return result
+
+    def synthesize_insights(self, analysis_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Synthesize multiple analysis results into actionable insights."""
+        combined_analysis = json.dumps(analysis_results, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["analysis"],
+            template="""Based on the following analysis results, synthesize into:
+1. Key strategic insights
+2. Product recommendations
+3. Risk factors
+4. Opportunities
+5. Priority actions
+
+Analysis Results:
+{analysis}
+
+Provide response as JSON.""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({"analysis": combined_analysis})
+        
+        try:
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"insights": response.content}
+        
+        return result

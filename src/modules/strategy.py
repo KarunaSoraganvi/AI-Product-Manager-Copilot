@@ -1,182 +1,210 @@
-"""Strategy development and planning module."""
+"""Product strategy development module."""
 
-from typing import Dict, List, Any
 import logging
-from src.utils.llm_client import get_llm_client
+from typing import Any, Dict, List
+import json
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
 class StrategyDeveloper:
-    """Develops product and go-to-market strategies."""
+    """Develops comprehensive product strategies."""
 
-    def __init__(self):
-        self.llm = get_llm_client()
+    def __init__(self, model: str = None):
+        """Initialize the strategy developer."""
+        self.model_name = model or settings.DEFAULT_MODEL
+        self.llm = ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=self.model_name,
+            temperature=0.7,
+        )
+        logger.info(f"Initialized StrategyDeveloper with model: {self.model_name}")
 
-    def develop_product_strategy(
-        self,
-        company_vision: str,
-        market_opportunity: str,
-        competitive_landscape: str,
-        internal_capabilities: List[str],
-    ) -> Dict[str, Any]:
+    def develop_strategy(self, context: Dict[str, Any], objectives: List[str]) -> Dict[str, Any]:
         """Develop comprehensive product strategy."""
-        system_prompt = """You are a strategic product leader.
-        Develop a comprehensive product strategy that includes:
-        - Clear value proposition and differentiation
-        - Target market and customer segments
-        - Strategic positioning vs competitors
-        - Product vision and North Star metrics
-        - Key strategic initiatives
-        - Success criteria and KPIs
-        - 12-month strategic roadmap
+        context_str = json.dumps(context, indent=2)
+        objectives_str = "\n".join([f"- {obj}" for obj in objectives])
         
-        Make it actionable and specific to the context."""
+        prompt = PromptTemplate(
+            input_variables=["context", "objectives"],
+            template="""Develop a comprehensive product strategy:
 
-        user_message = f"""Develop a product strategy with:
+Context:
+{context}
 
-Company Vision: {company_vision}
+Strategic Objectives:
+{objectives}
 
-Market Opportunity: {market_opportunity}
+Provide a strategy including:
 
-Competitive Landscape: {competitive_landscape}
+1. Vision & Mission
+   - 3-5 year vision
+   - Mission statement
+   - Core values
 
-Our Capabilities: {', '.join(internal_capabilities)}
+2. Strategic Pillars
+   - 3-5 key pillars
+   - Supporting initiatives
+   - Success metrics
 
-Create a comprehensive, actionable product strategy."""
+3. Market Positioning
+   - Target market definition
+   - Unique value proposition
+   - Competitive advantage
+   - Brand positioning
 
-        try:
-            strategy = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "product_strategy": strategy,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Strategy development failed: {e}")
-            return {"status": "error", "error": str(e)}
+4. Go-to-Market Strategy
+   - Launch approach
+   - Customer acquisition
+   - Pricing strategy
+   - Distribution strategy
 
-    def develop_gtm_strategy(
-        self,
-        product_name: str,
-        target_customers: List[str],
-        value_proposition: str,
-        market_segment: str,
-    ) -> Dict[str, Any]:
-        """Develop go-to-market strategy."""
-        system_prompt = """You are a go-to-market expert.
-        Develop a comprehensive GTM strategy including:
-        - Launch positioning and messaging
-        - Target customer segments and buyer personas
-        - Sales and distribution channels
-        - Pricing strategy
-        - Marketing and awareness plan
-        - Sales enablement approach
-        - Launch timeline and phases
-        - Success metrics
-        
-        Be specific and actionable."""
+5. Growth Strategy
+   - Market expansion
+   - Product expansion
+   - Partnership strategy
+   - Monetization strategy
 
-        user_message = f"""Develop GTM strategy for:
+6. Organizational Strategy
+   - Team structure
+   - Capability building
+   - Culture elements
+   - Capability roadmap
 
-Product: {product_name}
+7. Success Metrics
+   - Key metrics
+   - Quarterly targets
+   - Leading indicators
+   - Lagging indicators
 
-Target Customers: {', '.join(target_customers)}
-
-Value Proposition: {value_proposition}
-
-Market Segment: {market_segment}
-
-Create a detailed GTM plan with messaging, channels, and timeline."""
-
-        try:
-            gtm = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "gtm_strategy": gtm,
-                "product": product_name,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"GTM strategy development failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def develop_pricing_strategy(
-        self,
-        product: str,
-        competitors: List[str],
-        value_prop: str,
-        target_segment: str,
-    ) -> Dict[str, Any]:
-        """Develop pricing strategy."""
-        system_prompt = """You are a pricing strategy expert.
-        Develop a comprehensive pricing strategy that includes:
-        - Pricing model (SaaS, perpetual, hybrid, etc.)
-        - Tier structure and feature mapping
-        - Price points and rationale
-        - Competitive positioning
-        - Packaging recommendations
-        - Launch pricing and future adjustments
-        - Revenue projections
-        
-        Consider value, competition, and target customer willingness to pay."""
-
-        user_message = f"""Develop pricing strategy for:
-
-Product: {product}
-
-Competitors: {', '.join(competitors)}
-
-Value Proposition: {value_prop}
-
-Target: {target_segment}
-
-Create a detailed pricing strategy with tiers and rationale."""
-
-        try:
-            pricing = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "pricing_strategy": pricing,
-                "product": product,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Pricing strategy development failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def analyze_strategic_options(
-        self, options: List[Dict[str, str]]
-    ) -> Dict[str, Any]:
-        """Analyze strategic options and recommend best path."""
-        system_prompt = """You are a strategic advisor.
-        Analyze the provided strategic options and:
-        - Evaluate pros and cons of each
-        - Assess strategic fit and alignment
-        - Evaluate resource requirements
-        - Assess risk and uncertainty
-        - Estimate potential outcomes
-        - Recommend the best option with rationale
-        
-        Be analytical and data-driven in your assessment."""
-
-        options_str = "\n\n".join(
-            [
-                f"Option {i+1}: {opt.get('name', f'Option {i+1}')}\n{opt.get('description', '')}"
-                for i, opt in enumerate(options)
-            ]
+Provide response as JSON.""",
         )
 
-        user_message = f"""Analyze these strategic options:
-
-{options_str}
-
-Compare and recommend the best strategic path forward."""
-
+        chain = prompt | self.llm
+        response = chain.invoke({"context": context_str, "objectives": objectives_str})
+        
         try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "options_analyzed": len(options),
-                "analysis": analysis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Strategic analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"strategy": response.content}
+        
+        return result
+
+    def gtm_planning(self, product_info: Dict[str, Any], market_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Plan go-to-market strategy."""
+        product_str = json.dumps(product_info, indent=2)
+        market_str = json.dumps(market_info, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["product", "market"],
+            template="""Develop a go-to-market strategy:
+
+Product Information:
+{product}
+
+Market Information:
+{market}
+
+Provide GTM strategy including:
+
+1. Target Customer Definition
+   - Personas
+   - Use cases
+   - Customer segments
+   - TAM/SAM/SOM
+
+2. Positioning Strategy
+   - Unique value proposition
+   - Key messaging
+   - Competitive positioning
+   - Brand identity
+
+3. Pricing Strategy
+   - Pricing model
+   - Price points
+   - Packaging tiers
+   - Discounting strategy
+
+4. Sales Strategy
+   - Sales model (direct/indirect)
+   - Sales process
+   - Channel strategy
+   - Sales enablement
+
+5. Marketing Strategy
+   - Awareness tactics
+   - Engagement tactics
+   - Campaign calendar
+   - Content strategy
+
+6. Launch Plan
+   - Timeline
+   - Launch activities
+   - Success metrics
+   - Risk mitigation
+
+7. Metrics & KPIs
+   - Acquisition metrics
+   - Conversion metrics
+   - Retention metrics
+   - Targets and goals
+
+Provide response as JSON.""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({"product": product_str, "market": market_str})
+        
+        try:
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"gtm_plan": response.content}
+        
+        return result
+
+    def stakeholder_alignment(self, strategy: Dict[str, Any], stakeholders: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Create stakeholder alignment documentation."""
+        strategy_str = json.dumps(strategy, indent=2)
+        stakeholders_str = json.dumps(stakeholders, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["strategy", "stakeholders"],
+            template="""Create stakeholder alignment for this strategy:
+
+Strategy:
+{strategy}
+
+Stakeholders:
+{stakeholders}
+
+For each stakeholder group provide:
+1. Key interests and priorities
+2. Benefits of the strategy
+3. Concerns or risks
+4. Required commitments
+5. Success metrics relevant to them
+6. Communication approach
+
+Also provide:
+- Consensus points
+- Areas of potential conflict
+- Mitigation strategies
+- Governance model
+- Decision-making process
+- Escalation path
+
+Provide response as JSON.""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({"strategy": strategy_str, "stakeholders": stakeholders_str})
+        
+        try:
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"alignment": response.content}
+        
+        return result

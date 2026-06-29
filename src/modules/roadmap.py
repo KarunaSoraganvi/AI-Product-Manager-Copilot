@@ -1,8 +1,11 @@
-"""Product roadmap generation and planning module."""
+"""Roadmap generation and planning module."""
 
-from typing import Dict, List, Any
 import logging
-from src.utils.llm_client import get_llm_client
+from typing import Any, Dict, List
+import json
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -10,135 +13,162 @@ logger = logging.getLogger(__name__)
 class RoadmapPlanner:
     """Generates and optimizes product roadmaps."""
 
-    def __init__(self):
-        self.llm = get_llm_client()
+    def __init__(self, model: str = None):
+        """Initialize the roadmap planner."""
+        self.model_name = model or settings.DEFAULT_MODEL
+        self.llm = ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=self.model_name,
+            temperature=0.7,
+        )
+        logger.info(f"Initialized RoadmapPlanner with model: {self.model_name}")
 
-    def generate_roadmap(
-        self,
-        product_vision: str,
-        goals: List[str],
-        features: List[Dict[str, Any]],
-        timeline_quarters: int = 4,
-        constraints: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
+    def generate_roadmap(self, product_vision: str, goals: List[str], features: List[Dict[str, Any]], timeline_quarters: int = 4) -> Dict[str, Any]:
         """Generate a strategic product roadmap."""
-        system_prompt = """You are an expert product manager and strategist.
-        Create a detailed, actionable product roadmap that:
-        - Aligns with the product vision and strategic goals
-        - Prioritizes high-impact features
-        - Considers resource constraints and dependencies
-        - Includes clear phases with milestones
-        - Balances innovation with stability
+        goals_str = "\n".join([f"- {g}" for g in goals])
+        features_str = json.dumps(features, indent=2)
         
-        Format as clear phases with timelines and deliverables."""
+        prompt = PromptTemplate(
+            input_variables=["vision", "goals", "features", "timeline"],
+            template="""Create a {timeline}-quarter product roadmap.
 
-        features_str = "\n".join(
-            [f"- {f.get('name', 'Feature')}: {f.get('description', '')}" for f in features]
-        )
-
-        constraints_str = (
-            "\n".join(f"- {k}: {v}" for k, v in constraints.items())
-            if constraints
-            else "None specified"
-        )
-
-        user_message = f"""Create a {timeline_quarters}-quarter product roadmap for a product with:
-
-Vision: {product_vision}
+Product Vision:
+{vision}
 
 Strategic Goals:
-{chr(10).join(f'- {goal}' for goal in goals)}
+{goals}
 
-Candidate Features:
-{features_str}
+Available Features:
+{features}
+
+For the roadmap:
+1. Define quarterly themes
+2. Allocate features to quarters
+3. Identify dependencies
+4. Estimate effort for each quarter
+5. Establish success metrics
+6. Plan releases and milestones
+7. Risk mitigation strategies
+
+Provide response as JSON with:
+- quarterly_roadmap: array of quarters with themes and features
+- milestones: key deliverables
+- dependencies: feature dependencies
+- success_metrics: how to measure success
+- risks: identified risks and mitigation
+- resource_plan: team structure and capacity
+""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({
+            "vision": product_vision,
+            "goals": goals_str,
+            "features": features_str,
+            "timeline": timeline_quarters
+        })
+        
+        try:
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"roadmap": response.content, "quarters": timeline_quarters}
+        
+        return result
+
+    def plan_release_schedule(self, features: List[Dict[str, Any]], constraints: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Plan release schedule and sequencing."""
+        constraints = constraints or {}
+        features_str = json.dumps(features, indent=2)
+        constraints_str = json.dumps(constraints, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["features", "constraints"],
+            template="""Plan a release schedule for these features:
+
+Features:
+{features}
 
 Constraints:
-{constraints_str}
+{constraints}
 
-Generate a prioritized roadmap with phases, milestones, and success metrics."""
+For the release plan provide:
+1. Release sequencing
+   - Dependencies
+   - Critical path
+   - Parallel workstreams
 
-        try:
-            roadmap = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "product_vision": product_vision,
-                "roadmap": roadmap,
-                "timeline_quarters": timeline_quarters,
-                "features_considered": len(features),
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Roadmap generation failed: {e}")
-            return {"status": "error", "error": str(e)}
+2. Release timeline
+   - Proposed dates
+   - Sprint allocation
+   - Buffer time
 
-    def plan_phases(
-        self, goals: List[str], dependencies: Dict[str, List[str]] = None
-    ) -> Dict[str, Any]:
-        """Plan execution phases considering dependencies."""
-        system_prompt = """You are a project planning expert.
-        Create clear execution phases that:
-        - Respect dependencies between work items
-        - Sequence work logically
-        - Include milestones and success criteria
-        - Identify critical path
-        - Account for parallel workstreams"""
+3. Release content
+   - Feature grouping
+   - Release themes
+   - Communication story
 
-        deps_str = (
-            "\n".join(
-                f"- {item}: depends on {', '.join(deps)}" for item, deps in dependencies.items()
-            )
-            if dependencies
-            else "No known dependencies"
+4. Risk assessment
+   - Technical risks
+   - Market risks
+   - Mitigation strategies
+
+5. Success criteria
+   - Launch metrics
+   - Post-launch monitoring
+   - Rollback criteria
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Plan execution phases for these goals:
-
-{chr(10).join(f'- {goal}' for goal in goals)}
-
-Dependencies:
-{deps_str}
-
-Provide a phased execution plan with timelines and dependencies."""
-
+        chain = prompt | self.llm
+        response = chain.invoke({"features": features_str, "constraints": constraints_str})
+        
         try:
-            phases = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "execution_phases": phases,
-                "goals_count": len(goals),
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Phase planning failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"release_plan": response.content}
+        
+        return result
 
-    def analyze_roadmap_scenarios(
-        self, scenarios: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze different roadmap scenarios."""
-        system_prompt = """You are a scenario planning expert.
-        Compare and analyze the provided roadmap scenarios.
-        Evaluate: feasibility, risk, resource requirements, timeline, and strategic alignment.
-        Provide a recommendation with pros/cons of each."""
+    def scenario_planning(self, base_roadmap: Dict[str, Any], scenarios: List[str]) -> Dict[str, Any]:
+        """Plan roadmap scenarios based on different conditions."""
+        roadmap_str = json.dumps(base_roadmap, indent=2)
+        scenarios_str = "\n".join([f"- {s}" for s in scenarios])
+        
+        prompt = PromptTemplate(
+            input_variables=["roadmap", "scenarios"],
+            template="""Create roadmap scenarios for these conditions:
 
-        scenario_str = "\n\n".join(
-            [
-                f"Scenario {i+1}: {s.get('name', f'Scenario {i+1}')}\n{s.get('description', '')}"
-                for i, s in enumerate(scenarios)
-            ]
+Base Roadmap:
+{roadmap}
+
+Scenarios:
+{scenarios}
+
+For each scenario provide:
+1. Scenario description
+2. Key adjustments to roadmap
+3. Feature prioritization changes
+4. Timeline impacts
+5. Resource needs
+6. Success metrics
+7. Trigger conditions to activate
+
+Also provide:
+- Scenario probabilities
+- Leading indicators to watch
+- Contingency triggers
+- Decision points
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Analyze these roadmap scenarios:
-
-{scenario_str}
-
-Compare across: feasibility, risk, resources, timeline, and strategic alignment."""
-
+        chain = prompt | self.llm
+        response = chain.invoke({"roadmap": roadmap_str, "scenarios": scenarios_str})
+        
         try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "scenarios_analyzed": len(scenarios),
-                "scenario_analysis": analysis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Scenario analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"scenarios": scenarios, "planning": response.content}
+        
+        return result

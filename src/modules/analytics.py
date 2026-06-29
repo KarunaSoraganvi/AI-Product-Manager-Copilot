@@ -1,176 +1,185 @@
-"""Product analytics and metrics interpretation module."""
+"""Analytics and metrics interpretation module."""
 
-from typing import Dict, List, Any
 import logging
-from src.utils.llm_client import get_llm_client
+from typing import Any, Dict, List
+import json
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
 class AnalyticsInterpreter:
-    """Interprets product metrics and analytics."""
+    """Interprets metrics and KPIs to drive product decisions."""
 
-    def __init__(self):
-        self.llm = get_llm_client()
+    def __init__(self, model: str = None):
+        """Initialize the analytics interpreter."""
+        self.model_name = model or settings.DEFAULT_MODEL
+        self.llm = ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=self.model_name,
+            temperature=0.6,
+        )
+        logger.info(f"Initialized AnalyticsInterpreter with model: {self.model_name}")
 
     def interpret_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
-        """Interpret product metrics and KPIs."""
-        system_prompt = """You are a data analyst and product expert.
-        Interpret the provided metrics to:
-        - Identify key trends and patterns
-        - Assess product health
-        - Highlight areas of concern or opportunity
-        - Provide actionable insights
-        - Recommend improvements or next steps
-        - Put metrics in context of business goals
+        """Interpret product metrics and provide insights."""
+        metrics_str = json.dumps(metrics, indent=2)
         
-        Be specific and data-driven."""
+        prompt = PromptTemplate(
+            input_variables=["metrics"],
+            template="""Interpret these product metrics and provide analysis:
 
-        metrics_str = "\n".join(
-            [f"- {k}: {v}" for k, v in metrics.items()]
+1. Health Assessment
+   - Overall product health score
+   - Trend direction
+   - Red flags or concerns
+
+2. Key Insights
+   - What metrics tell us
+   - Changes vs baseline
+   - Anomalies and patterns
+
+3. User Behavior Analysis
+   - Engagement patterns
+   - Retention trends
+   - Churn indicators
+   - Feature adoption
+
+4. Performance Assessment
+   - Strength areas
+   - Weakness areas
+   - Benchmarking vs industry
+   - Competitive positioning
+
+5. Actionable Recommendations
+   - Immediate actions
+   - Experimentation ideas
+   - Strategic initiatives
+   - Priority fixes
+
+6. Forecast & Projections
+   - 3-month forecast
+   - Trend extrapolation
+   - Risk scenarios
+
+Metrics:
+{metrics}
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Interpret these product metrics:
-
-{metrics_str}
-
-What do these metrics tell us about product health and performance?
-What should we do about it?"""
-
+        chain = prompt | self.llm
+        response = chain.invoke({"metrics": metrics_str})
+        
         try:
-            interpretation = self.llm.generate_with_context(
-                system_prompt, user_message
-            )
-            return {
-                "metrics_interpreted": len(metrics),
-                "interpretation": interpretation,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Metrics interpretation failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def analyze_user_cohorts(
-        self, cohorts: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze user cohort data."""
-        system_prompt = """You are a cohort analysis expert.
-        Analyze the provided user cohorts to identify:
-        - Behavioral patterns between cohorts
-        - Retention and engagement differences
-        - Churn risks and opportunities
-        - Feature adoption rates
-        - Segment-specific insights
-        - Recommendations for each cohort
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"metrics_count": len(metrics), "analysis": response.content}
         
-        Focus on actionable insights."""
+        return result
 
-        cohorts_str = "\n\n".join(
-            [
-                f"Cohort {i+1}: {c.get('name', f'Cohort {i+1}')}\n{str(c)}"
-                for i, c in enumerate(cohorts)
-            ]
+    def analyze_cohort(self, cohort_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze user cohort behavior and retention."""
+        cohort_str = json.dumps(cohort_data, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["cohort"],
+            template="""Analyze this cohort retention data:
+
+1. Cohort Performance
+   - Retention curves by cohort
+   - Best/worst performing cohorts
+   - Cohort size trends
+
+2. Retention Insights
+   - Week 1 retention (stickiness)
+   - Long-term retention trends
+   - Drop-off patterns
+   - Seasonality effects
+
+3. Segment Analysis
+   - Performance by segment
+   - Segmentation opportunities
+   - High-value cohorts
+
+4. Improvement Opportunities
+   - Onboarding improvements
+   - Engagement drivers
+   - Churn prevention
+   - Monetization levers
+
+5. Experiment Recommendations
+   - A/B test ideas
+   - Measurement approach
+   - Expected impact
+
+Cohort Data:
+{cohort}
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Analyze these user cohorts:
-
-{cohorts_str}
-
-What patterns emerge? What should we do for each cohort?"""
-
+        chain = prompt | self.llm
+        response = chain.invoke({"cohort": cohort_str})
+        
         try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "cohorts_analyzed": len(cohorts),
-                "analysis": analysis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Cohort analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def predict_trends(
-        self, historical_data: List[Dict[str, Any]], metric_name: str
-    ) -> Dict[str, Any]:
-        """Predict future trends based on historical data."""
-        system_prompt = """You are a data analyst with forecasting expertise.
-        Based on historical data, predict future trends for the metric.
-        Include:
-        - Trend direction and magnitude
-        - Key drivers of the trend
-        - Potential inflection points
-        - Confidence level in the prediction
-        - Scenarios for different conditions
-        - Recommendations based on predictions
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"cohort_analysis": response.content}
         
-        Be balanced and acknowledge uncertainty."""
+        return result
 
-        data_str = "\n".join(
-            [
-                f"Period {i+1}: {d.get('period', f'Period {i+1}')} - Value: {d.get('value', 'N/A')}"
-                for i, d in enumerate(historical_data)
-            ]
-        )
+    def forecast_trends(self, historical_data: Dict[str, List[float]], metrics: List[str] = None) -> Dict[str, Any]:
+        """Forecast future trends based on historical data."""
+        metrics = metrics or []
+        data_str = json.dumps(historical_data, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["data", "metrics"],
+            template="""Based on this historical data, forecast trends:
 
-        user_message = f"""Predict future trends for {metric_name}:
+1. Trend Analysis
+   - Current trend direction
+   - Trend strength
+   - Seasonality patterns
+   - Growth acceleration/deceleration
+
+2. Forecasts (3, 6, 12 months)
+   - Projected values
+   - Confidence intervals
+   - Best/worst case scenarios
+
+3. Inflection Points
+   - Expected changes
+   - Critical thresholds
+   - Trigger events
+
+4. Risk Factors
+   - External dependencies
+   - Market risks
+   - Execution risks
+
+5. Opportunity Windows
+   - Optimal timing for initiatives
+   - Resource allocation timing
+   - Market windows
 
 Historical Data:
-{data_str}
+{data}
 
-What's the trend? Where is it heading? What should we prepare for?"""
+Key Metrics: {metrics}
 
-        try:
-            prediction = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "metric": metric_name,
-                "data_points": len(historical_data),
-                "prediction": prediction,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Trend prediction failed: {e}")
-            return {"status": "error", "error": str(e)}
+Provide response as JSON.""",
+        )
 
-    def benchmark_performance(
-        self, your_metrics: Dict[str, Any], industry_benchmarks: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Compare performance against industry benchmarks."""
-        system_prompt = """You are a benchmarking analyst.
-        Compare your product's metrics against industry benchmarks to:
-        - Identify areas of strength
-        - Highlight underperforming areas
-        - Assess competitive positioning
-        - Identify improvement opportunities
-        - Provide context on industry trends
-        - Recommend focus areas for improvement
+        chain = prompt | self.llm
+        response = chain.invoke({"data": data_str, "metrics": ", ".join(metrics) if metrics else "various"})
         
-        Be balanced and specific."""
-
-        your_metrics_str = "\n".join(
-            [f"- {k}: {v}" for k, v in your_metrics.items()]
-        )
-        benchmarks_str = "\n".join(
-            [f"- {k}: {v}" for k, v in industry_benchmarks.items()]
-        )
-
-        user_message = f"""Compare our performance to industry benchmarks:
-
-Our Metrics:
-{your_metrics_str}
-
-Industry Benchmarks:
-{benchmarks_str}
-
-How do we compare? Where should we focus?"""
-
         try:
-            benchmark = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "your_metrics_count": len(your_metrics),
-                "benchmarks_count": len(industry_benchmarks),
-                "comparison": benchmark,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Benchmarking failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"forecast": response.content}
+        
+        return result

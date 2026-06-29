@@ -1,128 +1,170 @@
-"""Market and competitive analysis module."""
+"""Market analysis module for competitive intelligence and market research."""
 
-from typing import Dict, List, Any
 import logging
-from src.utils.llm_client import get_llm_client
-from src.utils.formatters import OutputFormatter
+from typing import Any, Dict, List
+import json
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
 class MarketAnalyzer:
-    """Analyzes market trends and competitive landscape."""
+    """Analyzes market trends, competition, and opportunities."""
 
-    def __init__(self):
-        self.llm = get_llm_client()
-        self.formatter = OutputFormatter()
+    def __init__(self, model: str = None):
+        """Initialize the market analyzer."""
+        self.model_name = model or settings.DEFAULT_MODEL
+        self.llm = ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=self.model_name,
+            temperature=0.7,
+        )
+        logger.info(f"Initialized MarketAnalyzer with model: {self.model_name}")
 
-    def analyze_market(
-        self,
-        market: str,
-        competitors: List[str] = None,
-        trends: List[str] = None,
-        focus_areas: List[str] = None,
-    ) -> Dict[str, Any]:
-        """Analyze overall market opportunity."""
-        system_prompt = """You are an expert market analyst with deep knowledge of industry trends.
-        Provide comprehensive market analysis including: size, growth potential, key trends,
-        and emerging opportunities. Be data-driven and strategic."""
-
-        user_message = f"""Analyze the {market} market.
-
-Competitors: {', '.join(competitors) if competitors else 'None specified'}
-Trends: {', '.join(trends) if trends else 'None specified'}
-Focus Areas: {', '.join(focus_areas) if focus_areas else 'General analysis'}"""
-
-        try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "market": market,
-                "analysis": analysis,
-                "competitors_analyzed": len(competitors) if competitors else 0,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Market analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def analyze_competitors(
-        self, competitors: List[Dict[str, Any]], focus_areas: List[str] = None
-    ) -> Dict[str, Any]:
-        """Analyze competitive landscape."""
-        system_prompt = """You are a competitive intelligence analyst.
-        Analyze the provided competitors across key dimensions:
-        - Strengths and weaknesses
-        - Market positioning
-        - Product differentiation
-        - Pricing strategy
-        - Go-to-market approach
+    def analyze_market(self, market: str, competitors: List[str] = None, focus_areas: List[str] = None) -> Dict[str, Any]:
+        """Perform comprehensive market analysis."""
+        competitors = competitors or []
+        focus_areas = focus_areas or ["trends", "opportunities", "threats", "market_size"]
         
-        Provide strategic recommendations for competitive advantage."""
+        prompt = PromptTemplate(
+            input_variables=["market", "competitors", "focus"],
+            template="""Analyze the {market} market. Provide:
 
-        user_message = f"""Analyze these competitors:
+1. Market Size & Growth
+   - Current market size
+   - Growth rate
+   - Projected growth
 
-{chr(10).join(f'- {comp}' for comp in [c.get('name', str(c)) for c in competitors])}
+2. Market Trends
+   - Top 3 trends
+   - Emerging technologies
+   - Consumer behavior shifts
 
-Focus on: {', '.join(focus_areas) if focus_areas else 'Overall competitiveness'}"""
+3. Opportunities
+   - Market gaps
+   - Underserved segments
+   - New applications
 
+4. Threats
+   - Regulatory risks
+   - Competitive pressures
+   - Economic factors
+
+5. Key Success Factors
+   - Critical capabilities
+   - Customer requirements
+   - Competitive advantages
+
+Competitors to analyze: {competitors}
+Focus areas: {focus}
+
+Provide response as JSON.""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({
+            "market": market,
+            "competitors": ", ".join(competitors) if competitors else "major players",
+            "focus": ", ".join(focus_areas)
+        })
+        
         try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "competitors_analyzed": len(competitors),
-                "competitive_analysis": analysis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Competitive analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"analysis": response.content, "market": market}
+        
+        return result
 
-    def identify_market_gaps(
-        self, market: str, existing_solutions: List[str] = None
-    ) -> Dict[str, Any]:
+    def analyze_competitors(self, competitors: List[str], focus_areas: List[str] = None) -> Dict[str, Any]:
+        """Analyze competitive landscape."""
+        focus_areas = focus_areas or ["features", "pricing", "strengths", "weaknesses", "positioning"]
+        competitors_str = "\n".join([f"- {c}" for c in competitors])
+        
+        prompt = PromptTemplate(
+            input_variables=["competitors", "focus"],
+            template="""Perform competitive analysis for these products:
+{competitors}
+
+For each competitor analyze:
+1. Core Features & Capabilities
+2. Pricing Model & Structure
+3. Target Market
+4. Strengths & Competitive Advantages
+5. Weaknesses & Limitations
+6. Market Position
+7. Recent Updates & Roadmap
+
+Focus areas: {focus}
+
+Also provide:
+- Competitive positioning matrix
+- Gap analysis
+- Differentiation opportunities
+
+Provide response as JSON.""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({"competitors": competitors_str, "focus": ", ".join(focus_areas)})
+        
+        try:
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"competitors": competitors, "analysis": response.content}
+        
+        return result
+
+    def identify_market_gaps(self, market: str, competitors: List[str], features: List[str] = None) -> Dict[str, Any]:
         """Identify unmet needs and market gaps."""
-        system_prompt = """You are an expert at identifying market opportunities.
-        Analyze the market for unmet needs, underserved segments, and white space opportunities.
-        Consider: customer pain points, emerging technologies, market trends, and demographic shifts."""
+        prompt = PromptTemplate(
+            input_variables=["market", "competitors", "features"],
+            template="""Identify market gaps in the {market} market.
 
-        user_message = f"""Identify market gaps in {market}.
+Analyze gaps in terms of:
+1. Functionality gaps
+   - Missing features
+   - Unmet customer needs
+   - Pain points not addressed
 
-Existing solutions: {', '.join(existing_solutions) if existing_solutions else 'None specified'}
+2. Market segment gaps
+   - Underserved user segments
+   - Geographic opportunities
+   - Use case gaps
 
-What are the main gaps, underserved segments, and opportunities?"""
+3. Experience gaps
+   - Usability issues
+   - Integration challenges
+   - Customer experience problems
 
+4. Pricing gaps
+   - Affordability issues
+   - Licensing models
+   - Value perception
+
+Competitors: {competitors}
+Known features: {features}
+
+For each gap provide:
+1. Description
+2. Size & potential
+3. Difficulty to address
+4. ROI potential
+
+Provide response as JSON.""",
+        )
+
+        chain = prompt | self.llm
+        response = chain.invoke({
+            "market": market,
+            "competitors": ", ".join(competitors),
+            "features": ", ".join(features) if features else "various"
+        })
+        
         try:
-            gaps = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "market": market,
-                "identified_gaps": gaps,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Gap analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def analyze_trends(
-        self, market: str, trends: List[str] = None
-    ) -> Dict[str, Any]:
-        """Analyze market and industry trends."""
-        system_prompt = """You are a market trend analyst.
-        Analyze the provided trends and explain their implications for product strategy.
-        Consider: adoption rates, disruption potential, time horizons, and strategic importance."""
-
-        user_message = f"""Analyze market trends in {market}.
-
-Key trends to analyze: {', '.join(trends) if trends else 'Current market trends'}
-
-What are the strategic implications and opportunities?"""
-
-        try:
-            trend_analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "market": market,
-                "trend_analysis": trend_analysis,
-                "trends_analyzed": len(trends) if trends else 0,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Trend analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"gaps": response.content}
+        
+        return result

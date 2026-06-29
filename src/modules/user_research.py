@@ -1,161 +1,187 @@
-"""User research and feedback analysis module."""
+"""User research and customer insights module."""
 
-from typing import Dict, List, Any
 import logging
-from src.utils.llm_client import get_llm_client
+from typing import Any, Dict, List
+import json
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
 class UserResearchAnalyzer:
-    """Analyzes user feedback and research data."""
+    """Analyzes user feedback, surveys, and research data."""
 
-    def __init__(self):
-        self.llm = get_llm_client()
+    def __init__(self, model: str = None):
+        """Initialize the user research analyzer."""
+        self.model_name = model or settings.DEFAULT_MODEL
+        self.llm = ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=self.model_name,
+            temperature=0.7,
+        )
+        logger.info(f"Initialized UserResearchAnalyzer with model: {self.model_name}")
 
-    def synthesize_interviews(
-        self, interviews: List[Dict[str, str]]
-    ) -> Dict[str, Any]:
-        """Synthesize findings from multiple user interviews."""
-        system_prompt = """You are a user research analyst.
-        Synthesize the following interview data to identify:
-        - User pain points and needs
-        - Common patterns and themes
-        - Feature requests and preferences
-        - Customer segments and personas
-        - Opportunities for product improvement
+    def analyze_interviews(self, transcripts: List[str]) -> Dict[str, Any]:
+        """Analyze interview transcripts to extract insights."""
+        combined = "\n\n---INTERVIEW BREAK---\n\n".join(transcripts)
         
-        Provide actionable insights for product decisions."""
+        prompt = PromptTemplate(
+            input_variables=["transcripts"],
+            template="""Analyze these user interview transcripts and extract:
 
-        interviews_str = "\n\n".join(
-            [
-                f"Interview {i+1}: {interview.get('participant', f'Participant {i+1}')}\n{interview.get('transcript', '')}"
-                for i, interview in enumerate(interviews)
-            ]
+1. Key Themes
+   - Recurring topics
+   - Pain points
+   - Desired features
+   - Workflow patterns
+
+2. User Jobs
+   - Primary jobs to be done
+   - Supporting jobs
+   - Emotional jobs
+
+3. Pain Points (ranked by frequency)
+   - Current solutions
+   - Severity
+   - Workarounds used
+
+4. Desired Outcomes
+   - Must-have features
+   - Nice-to-have features
+   - Success metrics
+
+5. User Personas
+   - Segments identified
+   - Characteristics
+   - Motivations
+
+6. Actionable Insights
+   - Immediate actions
+   - Strategic implications
+   - Validation needs
+
+Transcripts:
+{transcripts}
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Synthesize these user interviews:
-
-{interviews_str}
-
-Identify key themes, pain points, needs, and product opportunities."""
-
-        try:
-            synthesis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "interviews_analyzed": len(interviews),
-                "synthesis": synthesis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Interview synthesis failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def analyze_feedback(self, feedback_items: List[str]) -> Dict[str, Any]:
-        """Analyze and categorize user feedback."""
-        system_prompt = """You are a feedback analyst.
-        Analyze the provided feedback to:
-        - Categorize by theme or topic
-        - Identify sentiment (positive, negative, neutral)
-        - Extract actionable insights
-        - Identify feature requests vs bug reports
-        - Assess priority and impact
+        chain = prompt | self.llm
+        response = chain.invoke({"transcripts": combined})
         
-        Provide structured analysis with recommendations."""
-
-        feedback_str = "\n".join([f"- {item}" for item in feedback_items])
-
-        user_message = f"""Analyze this user feedback:
-
-{feedback_str}
-
-Categorize, sentiment analyze, and provide actionable insights."""
-
         try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "feedback_items_analyzed": len(feedback_items),
-                "analysis": analysis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Feedback analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def identify_personas(
-        self, user_data: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Identify user personas from research data."""
-        system_prompt = """You are a user research specialist.
-        Based on the provided user data, identify distinct user personas.
-        For each persona, describe:
-        - Demographics and background
-        - Goals and motivations
-        - Pain points and frustrations
-        - Use cases and workflows
-        - Needs and priorities
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"interviews": len(transcripts), "analysis": response.content}
         
-        Provide actionable persona descriptions for product decisions."""
+        return result
 
-        users_str = "\n".join(
-            [
-                f"User {i+1}: {u.get('description', str(u))}"
-                for i, u in enumerate(user_data)
-            ]
+    def analyze_surveys(self, survey_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze survey responses and aggregated data."""
+        survey_str = json.dumps(survey_data, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["survey"],
+            template="""Analyze this survey data and provide:
+
+1. Key Statistics
+   - Response rate
+   - Sample demographics
+   - Key metrics
+
+2. Response Patterns
+   - Most common responses
+   - Variations by segment
+   - Outliers
+
+3. Sentiment Analysis
+   - Overall satisfaction
+   - Sentiment by topic
+   - Emotional indicators
+
+4. Feature Requests (ranked)
+   - Most requested features
+   - Frequency analysis
+   - User segment interest
+
+5. Satisfaction Drivers
+   - What matters most
+   - Correlation analysis
+   - Investment priorities
+
+6. Recommendations
+   - Strategic insights
+   - Immediate improvements
+   - Long-term direction
+
+Survey Data:
+{survey}
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Identify user personas from this data:
-
-{users_str}
-
-Define distinct personas with goals, pain points, and needs."""
-
-        try:
-            personas = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "users_analyzed": len(user_data),
-                "personas": personas,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Persona identification failed: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def analyze_feature_requests(
-        self, feature_requests: List[Dict[str, str]]
-    ) -> Dict[str, Any]:
-        """Analyze and prioritize feature requests from users."""
-        system_prompt = """You are a product manager analyzing feature requests.
-        Analyze the requests and provide:
-        - Categorization and clustering
-        - User demand estimation
-        - Impact assessment
-        - Implementation complexity
-        - Strategic alignment
-        - Prioritization recommendation
+        chain = prompt | self.llm
+        response = chain.invoke({"survey": survey_str})
         
-        Consider both volume and value of requests."""
+        try:
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"responses": len(survey_data), "analysis": response.content}
+        
+        return result
 
-        requests_str = "\n".join(
-            [
-                f"Request: {r.get('title', 'Untitled')} - {r.get('description', '')}"
-                for r in feature_requests
-            ]
+    def synthesize_research(self, research_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Synthesize multiple research sources into insights."""
+        research_str = json.dumps(research_data, indent=2)
+        
+        prompt = PromptTemplate(
+            input_variables=["research"],
+            template="""Synthesize this research data into cohesive insights:
+
+1. User Personas (3-5)
+   - Name, role, background
+   - Goals and motivations
+   - Pain points and frustrations
+   - Success criteria
+
+2. Jobs to Be Done
+   - Primary jobs
+   - Context and triggers
+   - Current solutions
+   - Desired outcomes
+
+3. Opportunity Areas
+   - Unmet needs
+   - Market opportunities
+   - Priority ranking
+   - Addressability assessment
+
+4. Feature Priorities
+   - Must-have features
+   - High-value features
+   - Engagement drivers
+   - Retention factors
+
+5. Go-to-Market Insights
+   - Key messaging
+   - Target segments
+   - Acquisition channels
+   - Competitive positioning
+
+Research Data:
+{research}
+
+Provide response as JSON.""",
         )
 
-        user_message = f"""Analyze these feature requests:
-
-{requests_str}
-
-Categorize, prioritize, and recommend which to build."""
-
+        chain = prompt | self.llm
+        response = chain.invoke({"research": research_str})
+        
         try:
-            analysis = self.llm.generate_with_context(system_prompt, user_message)
-            return {
-                "requests_analyzed": len(feature_requests),
-                "analysis": analysis,
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Feature request analysis failed: {e}")
-            return {"status": "error", "error": str(e)}
+            result = json.loads(response.content)
+        except json.JSONDecodeError:
+            result = {"synthesis": response.content}
+        
+        return result
