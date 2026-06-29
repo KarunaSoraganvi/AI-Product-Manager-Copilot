@@ -1,5 +1,7 @@
 # AI Product Manager Copilot
 
+![Demo](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==)
+
 A comprehensive AI-powered assistant designed to help product managers with strategy, analytics, market research, roadmap planning, and decision-making.
 
 ## ✨ Key Features
