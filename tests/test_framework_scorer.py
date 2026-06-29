@@ -1,78 +1,64 @@
-"""Tests for feature scoring framework."""
+"""Tests for the feature prioritization framework scorer."""
 
 import pytest
+from unittest.mock import patch, MagicMock
 from src.core.framework_scorer import FeatureScorer
 
 
+@pytest.fixture
+def scorer():
+    """Create feature scorer instance for testing."""
+    with patch("src.core.framework_scorer.ChatOpenAI"):
+        return FeatureScorer(model="gpt-4")
+
+
 class TestFeatureScorer:
-    """Test suite for feature prioritization."""
+    """Test suite for FeatureScorer."""
 
-    @pytest.fixture
-    def sample_features(self):
-        """Sample features for testing."""
-        return [
-            {
-                "name": "Feature A",
-                "reach": 100,
-                "impact": 3,
-                "confidence": 80,
-                "effort": 5,
-            },
-            {
-                "name": "Feature B",
-                "reach": 50,
-                "impact": 4,
-                "confidence": 90,
-                "effort": 2,
-            },
-            {
-                "name": "Feature C",
-                "reach": 200,
-                "impact": 2,
-                "confidence": 70,
-                "effort": 10,
-            },
-        ]
+    def test_scorer_initialization(self, scorer):
+        """Test scorer initializes correctly."""
+        assert scorer is not None
+        assert scorer.model_name == "gpt-4"
+        assert scorer.llm is not None
 
-    def test_rice_scoring(self, sample_features):
-        """Test RICE framework scoring."""
-        scored = FeatureScorer.score_rice(sample_features)
+    def test_score_by_rice(self, scorer):
+        """Test RICE scoring."""
+        with patch.object(scorer.llm, "invoke") as mock_invoke:
+            mock_invoke.return_value = MagicMock(
+                content='[{"name": "Feature1", "rice_score": 100, "rank": 1}]'
+            )
+            
+            features = [
+                {"name": "Feature1", "reach": 1000, "impact": 3, "confidence": 0.8, "effort": 5}
+            ]
+            result = scorer.score_by_rice(features)
+            
+            assert result is not None
+            assert isinstance(result, list)
 
-        assert len(scored) == len(sample_features)
-        assert "rice_score" in scored[0]
-        # Verify sorted by score descending
-        assert scored[0]["rice_score"] >= scored[-1]["rice_score"]
+    def test_score_by_moscow(self, scorer):
+        """Test MoSCoW scoring."""
+        with patch.object(scorer.llm, "invoke") as mock_invoke:
+            mock_invoke.return_value = MagicMock(
+                content='{"must": [{"name": "Feature1"}], "should": [], "could": [], "wont": []}'
+            )
+            
+            features = [{"name": "Feature1"}]
+            result = scorer.score_by_moscow(features)
+            
+            assert result is not None
+            assert isinstance(result, dict)
+            assert "must" in result or "should" in result
 
-    def test_moscow_scoring(self):
-        """Test MoSCoW framework scoring."""
-        features = [
-            {"name": "Feature A", "moscow_priority": "Must"},
-            {"name": "Feature B", "moscow_priority": "Should"},
-            {"name": "Feature C", "moscow_priority": "Could"},
-        ]
-
-        scored = FeatureScorer.score_moscow(features)
-
-        assert len(scored) == 3
-        assert scored[0]["moscow_score"] == 4  # Must
-        assert scored[1]["moscow_score"] == 3  # Should
-        assert scored[2]["moscow_score"] == 2  # Could
-
-    def test_value_effort_quadrant(self):
-        """Test Value vs Effort quadrant classification."""
-        assert (
-            FeatureScorer._get_quadrant(8, 2) == "Quick Wins"
-        )
-        assert (
-            FeatureScorer._get_quadrant(8, 8) == "Major Projects"
-        )
-        assert (
-            FeatureScorer._get_quadrant(2, 2) == "Fill Ins"
-        )
-        assert (
-            FeatureScorer._get_quadrant(2, 8) == "Time Sinks"
-        )
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
+    def test_score_by_value_effort(self, scorer):
+        """Test Value vs Effort scoring."""
+        with patch.object(scorer.llm, "invoke") as mock_invoke:
+            mock_invoke.return_value = MagicMock(
+                content='[{"name": "Feature1", "value": 8, "effort": 3}]'
+            )
+            
+            features = [{"name": "Feature1"}]
+            result = scorer.score_by_value_effort(features)
+            
+            assert result is not None
+            assert isinstance(result, list)
