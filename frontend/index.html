@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Product Manager Copilot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h1>🚀 PM Copilot</h1>
+            </div>
+            <ul class="menu">
+                <li><a href="#" onclick="switchTab('dashboard')">Dashboard</a></li>
+                <li><a href="#" onclick="switchTab('market-analysis')">Market Analysis</a></li>
+                <li><a href="#" onclick="switchTab('user-research')">User Research</a></li>
+                <li><a href="#" onclick="switchTab('roadmap')">Roadmap</a></li>
+                <li><a href="#" onclick="switchTab('features')">Feature Prioritization</a></li>
+                <li><a href="#" onclick="switchTab('strategy')">Strategy</a></li>
+                <li><a href="#" onclick="switchTab('analytics')">Analytics</a></li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h2 id="page-title">Dashboard</h2>
+                <div class="user-menu">
+                    <span id="status">Ready</span>
+                </div>
+            </header>
+
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-content active">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Quick Start</h3>
+                        <p>Welcome to AI Product Manager Copilot. Select an option below to get started.</p>
+                        <button onclick="switchTab('market-analysis')" class="btn btn-primary">Analyze Market</button>
+                    </div>
+                    <div class="card">
+                        <h3>Recent Analysis</h3>
+                        <p id="recent-analysis">No analysis yet. Start by analyzing your market.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Features</h3>
+                        <ul>
+                            <li>📊 Market Analysis & Competitive Intelligence</li>
+                            <li>👥 User Research & Customer Insights</li>
+                            <li>🎯 Feature Prioritization (RICE, MoSCoW, etc.)</li>
+                            <li>📈 Analytics & Metrics Interpretation</li>
+                            <li>🗺️ Roadmap Planning & Scenario Analysis</li>
+                            <li>🎨 Strategy Development & GTM Planning</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Market Analysis Tab -->
+            <section id="market-analysis" class="tab-content">
+                <div class="form-container">
+                    <h3>Market Analysis</h3>
+                    <form onsubmit="analyzeMarket(event)">
+                        <div class="form-group">
+                            <label for="market-input">Market Name:</label>
+                            <input type="text" id="market-input" placeholder="e.g., SaaS Project Management" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="competitors-input">Competitors (comma-separated):</label>
+                            <input type="text" id="competitors-input" placeholder="e.g., Asana, Monday.com, Jira">
+                        </div>
+                        <div class="form-group">
+                            <label for="focus-areas">Focus Areas (comma-separated):</label>
+                            <input type="text" id="focus-areas" placeholder="e.g., trends, opportunities, threats">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Analyze Market</button>
+                    </form>
+                    <div id="market-results" class="results-container"></div>
+                </div>
+            </section>
+
+            <!-- User Research Tab -->
+            <section id="user-research" class="tab-content">
+                <div class="form-container">
+                    <h3>User Research Analysis</h3>
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchResearchTab('interviews')">Interview Analysis</button>
+                        <button class="tab-btn" onclick="switchResearchTab('surveys')">Survey Analysis</button>
+                        <button class="tab-btn" onclick="switchResearchTab('synthesis')">Synthesis</button>
+                    </div>
+
+                    <!-- Interviews -->
+                    <div id="interviews" class="research-tab active">
+                        <form onsubmit="analyzeInterviews(event)">
+                            <div class="form-group">
+                                <label for="interviews-input">Interview Transcripts:</label>
+                                <textarea id="interviews-input" rows="10" placeholder="Paste interview transcripts separated by ---\n---\n" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Analyze Interviews</button>
+                        </form>
+                        <div id="interview-results" class="results-container"></div>
+                    </div>
+
+                    <!-- Surveys -->
+                    <div id="surveys" class="research-tab">
+                        <form onsubmit="analyzeSurveys(event)">
+                            <div class="form-group">
+                                <label for="surveys-input">Survey Data (JSON):</label>
+                                <textarea id="surveys-input" rows="10" placeholder='{["question": "value", "response": "count"}]' required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Analyze Surveys</button>
+                        </form>
+                        <div id="survey-results" class="results-container"></div>
+                    </div>
+
+                    <!-- Synthesis -->
+                    <div id="synthesis" class="research-tab">
+                        <form onsubmit="synthesizeResearch(event)">
+                            <div class="form-group">
+                                <label for="synthesis-input">Research Data (JSON):</label>
+                                <textarea id="synthesis-input" rows="10" placeholder='{}' required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Synthesize Research</button>
+                        </form>
+                        <div id="synthesis-results" class="results-container"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Roadmap Tab -->
+            <section id="roadmap" class="tab-content">
+                <div class="form-container">
+                    <h3>Roadmap Generation</h3>
+                    <form onsubmit="generateRoadmap(event)">
+                        <div class="form-group">
+                            <label for="product-vision">Product Vision:</label>
+                            <textarea id="product-vision" rows="4" placeholder="Describe your product vision" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="roadmap-goals">Goals (one per line):</label>
+                            <textarea id="roadmap-goals" rows="4" placeholder="Goal 1\nGoal 2\nGoal 3" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="roadmap-features">Features (JSON):</label>
+                            <textarea id="roadmap-features" rows="6" placeholder='[{"name": "Feature 1", "description": "..."}]' required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="timeline-quarters">Timeline (quarters):</label>
+                            <input type="number" id="timeline-quarters" value="4" min="1" max="12">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Generate Roadmap</button>
+                    </form>
+                    <div id="roadmap-results" class="results-container"></div>
+                </div>
+            </section>
+
+            <!-- Features Tab -->
+            <section id="features" class="tab-content">
+                <div class="form-container">
+                    <h3>Feature Prioritization</h3>
+                    <form onsubmit="scoreFeatures(event)">
+                        <div class="form-group">
+                            <label for="features-list">Features (JSON):</label>
+                            <textarea id="features-list" rows="8" placeholder='[{"name": "Feature 1", "reach": 1000, "impact": 3, "confidence": 0.8, "effort": 8}]' required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="framework">Framework:</label>
+                            <select id="framework">
+                                <option value="RICE">RICE</option>
+                                <option value="MOSCOW">MoSCoW</option>
+                                <option value="VALUE_EFFORT">Value vs Effort</option>
+                                <option value="KANO">Kano</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Score Features</button>
+                    </form>
+                    <div id="features-results" class="results-container"></div>
+                </div>
+            </section>
+
+            <!-- Strategy Tab -->
+            <section id="strategy" class="tab-content">
+                <div class="form-container">
+                    <h3>Strategy Development</h3>
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchStrategyTab('product-strategy')">Product Strategy</button>
+                        <button class="tab-btn" onclick="switchStrategyTab('gtm')">Go-to-Market</button>
+                    </div>
+
+                    <!-- Product Strategy -->
+                    <div id="product-strategy" class="strategy-tab active">
+                        <form onsubmit="generateStrategy(event)">
+                            <div class="form-group">
+                                <label for="strategy-context">Context (JSON):</label>
+                                <textarea id="strategy-context" rows="6" placeholder='{"market": "", "competitors": [], "team_size": 5}' required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="strategy-objectives">Objectives (one per line):</label>
+                                <textarea id="strategy-objectives" rows="4" placeholder="Objective 1\nObjective 2" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Generate Strategy</button>
+                        </form>
+                        <div id="strategy-results" class="results-container"></div>
+                    </div>
+
+                    <!-- GTM -->
+                    <div id="gtm" class="strategy-tab">
+                        <form onsubmit="generateGTM(event)">
+                            <div class="form-group">
+                                <label for="gtm-product">Product Info (JSON):</label>
+                                <textarea id="gtm-product" rows="6" placeholder='{"name": "", "features": []}' required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="gtm-market">Market Info (JSON):</label>
+                                <textarea id="gtm-market" rows="6" placeholder='{"size": "", "growth": ""}' required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Generate GTM Plan</button>
+                        </form>
+                        <div id="gtm-results" class="results-container"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analytics Tab -->
+            <section id="analytics" class="tab-content">
+                <div class="form-container">
+                    <h3>Analytics & Metrics</h3>
+                    <form onsubmit="analyzeMetrics(event)">
+                        <div class="form-group">
+                            <label for="metrics-input">Metrics Data (JSON):</label>
+                            <textarea id="metrics-input" rows="10" placeholder='{"dau": 5000, "mau": 15000, "retention": 0.45, "churn": 0.05}' required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Analyze Metrics</button>
+                    </form>
+                    <div id="analytics-results" class="results-container"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

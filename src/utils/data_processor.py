@@ -1,80 +1,76 @@
-"""Data processing utilities for the copilot."""
+"""Data processing utilities."""
 
-import json
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
+import json
 import pandas as pd
+from nltk.tokenize import sent_tokenize
+from textblob import TextBlob
 
 logger = logging.getLogger(__name__)
 
 
 class DataProcessor:
-    """Handles data processing and formatting."""
+    """Utilities for processing and cleaning data."""
 
     @staticmethod
-    def parse_json(data: Union[str, Dict]) -> Dict[str, Any]:
-        """Parse JSON string or return dict as-is."""
-        if isinstance(data, str):
-            try:
-                return json.loads(data)
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON: {e}")
-                raise
-        return data
-
-    @staticmethod
-    def parse_csv(csv_content: str) -> List[Dict[str, Any]]:
-        """Parse CSV content into list of dicts."""
+    def parse_json_safely(text: str) -> Dict[str, Any]:
+        """Parse JSON text safely, returning empty dict on failure."""
         try:
-            df = pd.read_csv(pd.io.common.StringIO(csv_content))
-            return df.to_dict(orient="records")
-        except Exception as e:
-            logger.error(f"CSV parsing error: {e}")
-            raise
-
-    @staticmethod
-    def extract_text_blocks(text: str, delimiter: str = "\n\n") -> List[str]:
-        """Extract text blocks separated by delimiter."""
-        return [block.strip() for block in text.split(delimiter) if block.strip()]
+            return json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse JSON")
+            return {}
 
     @staticmethod
     def clean_text(text: str) -> str:
         """Clean and normalize text."""
-        # Remove extra whitespace
-        text = " ".join(text.split())
-        return text.strip()
+        text = text.strip()
+        text = " ".join(text.split())  # Remove extra whitespace
+        return text
 
     @staticmethod
-    def aggregate_feedback(feedback_list: List[str]) -> Dict[str, Any]:
-        """Aggregate and categorize feedback items."""
+    def extract_sentences(text: str) -> List[str]:
+        """Extract sentences from text."""
+        return sent_tokenize(text)
+
+    @staticmethod
+    def analyze_sentiment(text: str) -> Dict[str, Any]:
+        """Analyze sentiment of text using TextBlob."""
+        blob = TextBlob(text)
+        polarity = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
+        
+        if polarity > 0.1:
+            sentiment = "positive"
+        elif polarity < -0.1:
+            sentiment = "negative"
+        else:
+            sentiment = "neutral"
+        
         return {
-            "total_items": len(feedback_list),
-            "items": feedback_list,
-            "cleaned_items": [DataProcessor.clean_text(item) for item in feedback_list],
+            "sentiment": sentiment,
+            "polarity": round(polarity, 3),
+            "subjectivity": round(subjectivity, 3),
         }
 
     @staticmethod
-    def structure_market_data(
-        competitors: List[str],
-        market_size: str = None,
-        growth_rate: str = None,
-        trends: List[str] = None,
-    ) -> Dict[str, Any]:
-        """Structure market data for analysis."""
+    def aggregate_data(data_list: List[Dict[str, Any]], groupby: str = None) -> Dict[str, Any]:
+        """Aggregate list of data dictionaries."""
+        df = pd.DataFrame(data_list)
+        
+        if groupby and groupby in df.columns:
+            grouped = df.groupby(groupby).size().to_dict()
+            return grouped
+        
+        # Return basic stats
         return {
-            "competitors": competitors,
-            "market_size": market_size,
-            "growth_rate": growth_rate,
-            "trends": trends or [],
+            "count": len(df),
+            "columns": df.columns.tolist(),
+            "dtypes": df.dtypes.to_dict(),
         }
 
     @staticmethod
-    def score_features(
-        features: List[Dict[str, Any]], scores: List[float]
-    ) -> List[Dict[str, Any]]:
-        """Add scores to features and sort by score."""
-        scored_features = [
-            {**feature, "score": score}
-            for feature, score in zip(features, scores)
-        ]
-        return sorted(scored_features, key=lambda x: x["score"], reverse=True)
+    def format_for_llm(data: Dict[str, Any]) -> str:
+        """Format data for LLM input."""
+        return json.dumps(data, indent=2)

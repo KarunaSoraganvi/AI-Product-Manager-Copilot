@@ -6,81 +6,70 @@ from datetime import datetime
 
 
 class OutputFormatter:
-    """Formats analysis outputs."""
+    """Utilities for formatting output for users."""
 
     @staticmethod
-    def format_json(data: Dict[str, Any]) -> str:
+    def format_json(data: Dict[str, Any], pretty: bool = True) -> str:
         """Format data as JSON."""
-        return json.dumps(data, indent=2, default=str)
+        return json.dumps(data, indent=2 if pretty else None)
 
     @staticmethod
     def format_markdown(title: str, content: Dict[str, Any]) -> str:
-        """Format data as Markdown."""
-        md = f"# {title}\n\n"
-        for key, value in content.items():
-            md += f"## {key.replace('_', ' ').title()}\n"
-            if isinstance(value, list):
-                for item in value:
-                    md += f"- {item}\n"
-            elif isinstance(value, dict):
-                for k, v in value.items():
-                    md += f"- **{k}**: {v}\n"
+        """Format output as markdown."""
+        lines = [f"# {title}\n"]
+        lines.append(f"*Generated: {datetime.now().isoformat()}*\n")
+        
+        for section, data in content.items():
+            lines.append(f"## {section}\n")
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    lines.append(f"- **{key}**: {value}")
+            elif isinstance(data, list):
+                for item in data:
+                    lines.append(f"- {item}")
             else:
-                md += f"{value}\n"
-            md += "\n"
-        return md
+                lines.append(str(data))
+            lines.append("")
+        
+        return "\n".join(lines)
 
     @staticmethod
-    def format_report(
-        title: str,
-        summary: str,
-        sections: Dict[str, Any],
-        metadata: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
+    def format_table(data: List[Dict[str, Any]]) -> str:
+        """Format data as markdown table."""
+        if not data:
+            return "No data to display"
+        
+        keys = data[0].keys()
+        lines = []
+        
+        # Header
+        lines.append("| " + " | ".join(str(k) for k in keys) + " |")
+        lines.append("|" + "|" .join([" --- " for _ in keys]) + "|")
+        
+        # Rows
+        for row in data:
+            lines.append("| " + " | ".join(str(row.get(k, "")) for k in keys) + " |")
+        
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_report(title: str, sections: Dict[str, Any]) -> str:
         """Format comprehensive report."""
-        report = {
-            "title": title,
-            "generated_at": datetime.now().isoformat(),
-            "summary": summary,
-            "sections": sections,
-        }
-        if metadata:
-            report["metadata"] = metadata
-        return report
-
-    @staticmethod
-    def format_recommendations(
-        recommendations: List[str],
-        priorities: List[str] = None,
-        next_steps: List[str] = None,
-    ) -> Dict[str, Any]:
-        """Format recommendations with priorities and next steps."""
-        return {
-            "recommendations": recommendations,
-            "high_priority": priorities or [],
-            "next_steps": next_steps or [],
-            "count": len(recommendations),
-        }
-
-    @staticmethod
-    def format_roadmap(
-        phases: List[Dict[str, Any]], timeline: str = None
-    ) -> Dict[str, Any]:
-        """Format roadmap output."""
-        return {
-            "timeline": timeline or "TBD",
-            "phases": phases,
-            "total_phases": len(phases),
-        }
-
-    @staticmethod
-    def format_error(error_code: str, message: str, details: str = None) -> Dict[str, Any]:
-        """Format error response."""
-        error_response = {
-            "error": True,
-            "code": error_code,
-            "message": message,
-        }
-        if details:
-            error_response["details"] = details
-        return error_response
+        output = f"\n{'='*80}\n"
+        output += f"{title.upper()}".center(80) + "\n"
+        output += f"{'='*80}\n\n"
+        
+        for section_title, section_content in sections.items():
+            output += f"\n{section_title}\n"
+            output += "-" * len(section_title) + "\n"
+            
+            if isinstance(section_content, dict):
+                for key, value in section_content.items():
+                    output += f"{key}: {value}\n"
+            elif isinstance(section_content, list):
+                for item in section_content:
+                    output += f"  • {item}\n"
+            else:
+                output += f"{section_content}\n"
+        
+        return output

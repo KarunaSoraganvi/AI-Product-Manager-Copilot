@@ -1,49 +1,36 @@
-"""Configuration settings for AI Product Manager Copilot."""
+"""Configuration settings for the AI Product Manager Copilot."""
 
+import os
 from typing import Optional
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings with environment variable support."""
 
     # API Configuration
-    API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
-    API_DEBUG: bool = False
+    API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
+    API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    API_DEBUG: bool = os.getenv("API_DEBUG", "True").lower() == "true"
 
     # LLM Configuration
-    LLM_PROVIDER: str = "openai"  # Options: openai, anthropic, local
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_MODEL: str = "gpt-4"
-    OPENAI_TEMPERATURE: float = 0.7
-
-    ANTHROPIC_API_KEY: Optional[str] = None
-    ANTHROPIC_MODEL: str = "claude-3-opus-20240229"
-
-    # Feature Flags
-    ENABLE_MARKET_ANALYSIS: bool = True
-    ENABLE_USER_RESEARCH: bool = True
-    ENABLE_ROADMAP_PLANNING: bool = True
-    ENABLE_STRATEGY_GENERATION: bool = True
-    ENABLE_COMPETITIVE_ANALYSIS: bool = True
-
-    # Analysis Parameters
-    MAX_CONTEXT_TOKENS: int = 8000
-    MAX_OUTPUT_TOKENS: int = 2000
-    PRIORITIZATION_FRAMEWORK: str = "RICE"  # RICE, MoSCoW, Kano
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai")
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    ANTHROPIC_API_KEY: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gpt-4")
 
     # Logging
-    LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "json"  # json or standard
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
-    # Data Processing
-    MAX_FILE_SIZE_MB: int = 50
-    SUPPORTED_FILE_TYPES: list = ["csv", "json", "txt", "pdf"]
+    # Feature Flags
+    ENABLE_WEB_SCRAPING: bool = os.getenv("ENABLE_WEB_SCRAPING", "False").lower() == "true"
+    ENABLE_MARKET_INTELLIGENCE: bool = os.getenv("ENABLE_MARKET_INTELLIGENCE", "True").lower() == "true"
 
     class Config:
+        """Pydantic config."""
+
         env_file = ".env"
-        env_file_encoding = "utf-8"
+        case_sensitive = True
 
 
 settings = Settings()

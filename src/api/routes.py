@@ -1,227 +1,245 @@
-"""FastAPI routes for the copilot."""
+"""FastAPI routes for the AI Product Manager Copilot."""
 
+import logging
+from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-
-from src.modules.market_analysis import MarketAnalyzer
-from src.modules.roadmap import RoadmapPlanner
-from src.modules.user_research import UserResearchAnalyzer
-from src.modules.strategy import StrategyDeveloper
-from src.modules.analytics import AnalyticsInterpreter
+from config.settings import settings
+from src.core.analyzer import DataAnalyzer
+from src.core.recommender import RecommendationEngine
 from src.core.framework_scorer import FeatureScorer
+from src.modules.market_analysis import MarketAnalyzer
+from src.modules.user_research import UserResearchAnalyzer
+from src.modules.analytics import AnalyticsInterpreter
+from src.modules.roadmap import RoadmapPlanner
+from src.modules.strategy import StrategyDeveloper
 
-# Initialize app
+logger = logging.getLogger(__name__)
+
+# Initialize FastAPI app
 app = FastAPI(
     title="AI Product Manager Copilot",
     description="AI-powered assistant for product managers",
-    version="0.1.0",
+    version="1.0.0",
 )
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Request/Response models
+class TextInput(BaseModel):
+    """Input for text analysis."""
+    text: str
 
-# Initialize modules
-market_analyzer = MarketAnalyzer()
-roadmap_planner = RoadmapPlanner()
-research_analyzer = UserResearchAnalyzer()
-strategy_developer = StrategyDeveloper()
-analytics_interpreter = AnalyticsInterpreter()
-feature_scorer = FeatureScorer()
-
-
-# Request models
 class MarketAnalysisRequest(BaseModel):
+    """Request for market analysis."""
     market: str
     competitors: Optional[List[str]] = None
-    trends: Optional[List[str]] = None
     focus_areas: Optional[List[str]] = None
 
+class CompetitorAnalysisRequest(BaseModel):
+    """Request for competitor analysis."""
+    competitors: List[str]
+    focus_areas: Optional[List[str]] = None
 
-class RoadmapRequest(BaseModel):
+class FeaturePrioritizationRequest(BaseModel):
+    """Request for feature prioritization."""
+    features: List[Dict[str, Any]]
+    framework: str = "RICE"
+    weights: Optional[Dict[str, float]] = None
+
+class RoadmapGenerationRequest(BaseModel):
+    """Request for roadmap generation."""
     product_vision: str
     goals: List[str]
     features: List[Dict[str, Any]]
     timeline_quarters: int = 4
-    constraints: Optional[Dict[str, Any]] = None
 
+class InterviewAnalysisRequest(BaseModel):
+    """Request for interview analysis."""
+    transcripts: List[str]
 
-class FeatureRequest(BaseModel):
-    features: List[Dict[str, Any]]
-    framework: str = "RICE"
-
-
-class InterviewRequest(BaseModel):
-    interviews: List[Dict[str, str]]
-
-
-class FeedbackRequest(BaseModel):
-    feedback_items: List[str]
-
+class MetricsAnalysisRequest(BaseModel):
+    """Request for metrics analysis."""
+    metrics: Dict[str, Any]
 
 class StrategyRequest(BaseModel):
-    company_vision: str
-    market_opportunity: str
-    competitive_landscape: str
-    internal_capabilities: List[str]
-
-
-# Market Analysis Endpoints
-@app.post("/api/analyze/market")
-async def analyze_market(request: MarketAnalysisRequest):
-    """Analyze market opportunity and trends."""
-    try:
-        result = market_analyzer.analyze_market(
-            market=request.market,
-            competitors=request.competitors,
-            trends=request.trends,
-            focus_areas=request.focus_areas,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/analyze/competitors")
-async def analyze_competitors(competitors: List[Dict[str, Any]]):
-    """Analyze competitive landscape."""
-    try:
-        result = market_analyzer.analyze_competitors(competitors=competitors)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/analyze/market-gaps")
-async def identify_gaps(market: str, existing_solutions: Optional[List[str]] = None):
-    """Identify market gaps and opportunities."""
-    try:
-        result = market_analyzer.identify_market_gaps(
-            market=market, existing_solutions=existing_solutions
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Roadmap Endpoints
-@app.post("/api/generate/roadmap")
-async def generate_roadmap(request: RoadmapRequest):
-    """Generate product roadmap."""
-    try:
-        result = roadmap_planner.generate_roadmap(
-            product_vision=request.product_vision,
-            goals=request.goals,
-            features=request.features,
-            timeline_quarters=request.timeline_quarters,
-            constraints=request.constraints,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# User Research Endpoints
-@app.post("/api/synthesize/interviews")
-async def synthesize_interviews(request: InterviewRequest):
-    """Synthesize user interview data."""
-    try:
-        result = research_analyzer.synthesize_interviews(
-            interviews=request.interviews
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/analyze/feedback")
-async def analyze_feedback(request: FeedbackRequest):
-    """Analyze user feedback."""
-    try:
-        result = research_analyzer.analyze_feedback(
-            feedback_items=request.feedback_items
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Feature Prioritization Endpoints
-@app.post("/api/score/features")
-async def score_features(request: FeatureRequest):
-    """Score and rank features using prioritization framework."""
-    try:
-        result = feature_scorer.score_by_framework(
-            features=request.features, framework=request.framework
-        )
-        return {
-            "framework": request.framework,
-            "scored_features": result,
-            "count": len(result),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Strategy Endpoints
-@app.post("/api/generate/strategy")
-async def generate_strategy(request: StrategyRequest):
-    """Generate product strategy."""
-    try:
-        result = strategy_developer.develop_product_strategy(
-            company_vision=request.company_vision,
-            market_opportunity=request.market_opportunity,
-            competitive_landscape=request.competitive_landscape,
-            internal_capabilities=request.internal_capabilities,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Analytics Endpoints
-@app.post("/api/interpret/metrics")
-async def interpret_metrics(metrics: Dict[str, Any]):
-    """Interpret product metrics."""
-    try:
-        result = analytics_interpreter.interpret_metrics(metrics=metrics)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Request for strategy development."""
+    context: Dict[str, Any]
+    objectives: List[str]
 
 
 # Health check
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "version": "0.1.0"}
-
-
-# Root endpoint
-@app.get("/")
-async def root():
-    """Root endpoint with API information."""
     return {
-        "name": "AI Product Manager Copilot",
-        "version": "0.1.0",
-        "description": "AI-powered assistant for product managers",
-        "docs": "/docs",
-        "endpoints": {
-            "market_analysis": "/api/analyze/market",
-            "competitive_analysis": "/api/analyze/competitors",
-            "market_gaps": "/api/analyze/market-gaps",
-            "roadmap": "/api/generate/roadmap",
-            "interview_synthesis": "/api/synthesize/interviews",
-            "feedback_analysis": "/api/analyze/feedback",
-            "feature_scoring": "/api/score/features",
-            "strategy": "/api/generate/strategy",
-            "metrics": "/api/interpret/metrics",
-        },
+        "status": "healthy",
+        "version": "1.0.0",
+        "llm_provider": settings.LLM_PROVIDER,
     }
+
+
+# Analysis endpoints
+@app.post("/analyze/market")
+async def analyze_market(request: MarketAnalysisRequest):
+    """Analyze market trends and opportunities."""
+    try:
+        analyzer = MarketAnalyzer()
+        result = analyzer.analyze_market(
+            market=request.market,
+            competitors=request.competitors,
+            focus_areas=request.focus_areas,
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Market analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze/competitors")
+async def analyze_competitors(request: CompetitorAnalysisRequest):
+    """Analyze competitive landscape."""
+    try:
+        analyzer = MarketAnalyzer()
+        result = analyzer.analyze_competitors(
+            competitors=request.competitors,
+            focus_areas=request.focus_areas,
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Competitor analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze/interviews")
+async def analyze_interviews(request: InterviewAnalysisRequest):
+    """Analyze user interview transcripts."""
+    try:
+        analyzer = UserResearchAnalyzer()
+        result = analyzer.analyze_interviews(request.transcripts)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Interview analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/synthesize/user-research")
+async def synthesize_research(request: Dict[str, Any]):
+    """Synthesize user research data."""
+    try:
+        analyzer = UserResearchAnalyzer()
+        result = analyzer.synthesize_research(request)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Research synthesis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze/metrics")
+async def analyze_metrics(request: MetricsAnalysisRequest):
+    """Interpret product metrics."""
+    try:
+        interpreter = AnalyticsInterpreter()
+        result = interpreter.interpret_metrics(request.metrics)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Metrics analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Generation endpoints
+@app.post("/generate/roadmap")
+async def generate_roadmap(request: RoadmapGenerationRequest):
+    """Generate product roadmap."""
+    try:
+        planner = RoadmapPlanner()
+        result = planner.generate_roadmap(
+            product_vision=request.product_vision,
+            goals=request.goals,
+            features=request.features,
+            timeline_quarters=request.timeline_quarters,
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Roadmap generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/score/features")
+async def score_features(request: FeaturePrioritizationRequest):
+    """Score and prioritize features."""
+    try:
+        scorer = FeatureScorer()
+        result = scorer.score_by_framework(
+            features=request.features,
+            framework=request.framework,
+            weights=request.weights,
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Feature scoring error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate/strategy")
+async def generate_strategy(request: StrategyRequest):
+    """Generate product strategy."""
+    try:
+        developer = StrategyDeveloper()
+        result = developer.develop_strategy(
+            context=request.context,
+            objectives=request.objectives,
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Strategy generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate/gtm")
+async def generate_gtm(request: Dict[str, Any]):
+    """Generate go-to-market strategy."""
+    try:
+        developer = StrategyDeveloper()
+        result = developer.gtm_planning(
+            product_info=request.get("product_info", {}),
+            market_info=request.get("market_info", {}),
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"GTM generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Recommendation endpoints
+@app.post("/recommend/features")
+async def recommend_features(request: Dict[str, Any]):
+    """Recommend features."""
+    try:
+        engine = RecommendationEngine()
+        result = engine.recommend_features(
+            context=request.get("context", {}),
+            constraints=request.get("constraints", {}),
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Feature recommendation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/recommend/positioning")
+async def recommend_positioning(request: Dict[str, Any]):
+    """Recommend product positioning."""
+    try:
+        engine = RecommendationEngine()
+        result = engine.recommend_positioning(
+            market_analysis=request.get("market_analysis", {}),
+            competitive_analysis=request.get("competitive_analysis", {}),
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Positioning recommendation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
